@@ -337,7 +337,7 @@ pub async fn ffmpeg_make_vertical(in_mp4: &Path, out_mp4: &Path) -> Result<bool>
     out_h &= !1;
 
     let filter = format!(
-        "[0:v]crop=iw*0.6:ih:iw*0.2:0,scale={}:{},force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2:black[v]",
+        "[0:v]crop=iw*0.6:ih:iw*0.2:0,scale={}:{}:force_original_aspect_ratio=decrease,pad={}:{}:(ow-iw)/2:(oh-ih)/2:black[v]",
         out_w, out_h, out_w, out_h
     );
 

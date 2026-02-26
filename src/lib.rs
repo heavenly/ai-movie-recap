@@ -42,3 +42,5 @@ pub(crate) fn logok(message: impl AsRef<str>) {
 pub(crate) fn logw(message: impl AsRef<str>) {
     logv("WARN", message.as_ref());
 }
+
+pub mod init;

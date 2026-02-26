@@ -26,30 +26,62 @@ fn trim_copy_utf8_safe(input: &str, max_bytes: usize) -> String {
 
 fn openai_extract_output_text(resp_json: &str) -> Option<String> {
     let root: serde_json::Value = serde_json::from_str(resp_json).ok()?;
-
-    if let Some(err) = root.get("error") {
-        if let Some(msg) = err.get("message").and_then(|v| v.as_str()) {
-            logw(format!("OpenAI error message: {}", msg));
-        }
-        if let Some(typ) = err.get("type").and_then(|v| v.as_str()) {
-            logw(format!("OpenAI error type: {}", typ));
-        }
-        if let Some(code) = err.get("code").and_then(|v| v.as_str()) {
-            logw(format!("OpenAI error code: {}", code));
-        }
-        return None;
+    
+    // Debug: log the full output array structure when parsing fails
+    if let Some(output) = root.get("output") {
+        logi(format!("OpenAI output structure: {}", serde_json::to_string_pretty(output).unwrap_or_default()));
     }
 
-    let output = root.get("output")?.as_array()?;
-    for item in output {
+    if let Some(err) = root.get("error") {
+        // Only treat it as an error if the error field is not null
+        if !err.is_null() {
+            if let Some(msg) = err.get("message").and_then(|v| v.as_str()) {
+                logw(format!("OpenAI error message: {}", msg));
+            }
+            if let Some(typ) = err.get("type").and_then(|v| v.as_str()) {
+                logw(format!("OpenAI error type: {}", typ));
+            }
+            if let Some(code) = err.get("code").and_then(|v| v.as_str()) {
+                logw(format!("OpenAI error code: {}", code));
+            }
+            return None;
+        }
+    }
+
+    let output_arr = root.get("output");
+    logi(format!("output field exists: {}", output_arr.is_some()));
+    
+    let output = output_arr?.as_array()?;
+    logi(format!("output is array with {} items", output.len()));
+    
+    for (idx, item) in output.iter().enumerate() {
+        logi(format!("Processing output item {}", idx));
+        let item_type = item.get("type").and_then(|v| v.as_str());
+        logi(format!("Item {} type: {:?}", idx, item_type));
+        
         let content = item.get("content").and_then(|v| v.as_array());
+        logi(format!("Item {} has content array: {}", idx, content.is_some()));
         if let Some(content) = content {
             for entry in content {
                 let typ = entry.get("type").and_then(|v| v.as_str());
                 let text = entry.get("text").and_then(|v| v.as_str());
+                
+                // Debug logging to diagnose parsing issues
+                logi(format!(
+                    "Checking entry - type: {:?}, has_text: {}, entry: {}",
+                    typ,
+                    text.is_some(),
+                    entry
+                ));
+                
                 if typ == Some("output_text") {
                     if let Some(text) = text {
                         return Some(text.to_string());
+                    } else {
+                        logw(format!(
+                            "Found output_text entry but 'text' field is missing or not a string. Entry: {}",
+                            entry
+                        ));
                     }
                 }
             }

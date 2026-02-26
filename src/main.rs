@@ -5,6 +5,7 @@ use std::sync::{
 };
 
 use ai_movie_shorts::generator::run_generation;
+use ai_movie_shorts::init;
 use ai_movie_shorts::platform;
 use ai_movie_shorts::set_log_hook;
 
@@ -142,6 +143,17 @@ fn clear_logs(buffer: &Arc<Mutex<Vec<String>>>) {
 fn main() {
     tracing_subscriber::fmt::init();
 
+    // Initialize directories first
+    let rt = tokio::runtime::Runtime::new().expect("Failed to create async runtime");
+    rt.block_on(async {
+        if let Err(e) = init::ensure_directories().await {
+            eprintln!("[ERROR] Failed to create directories: {}", e);
+        }
+        if !init::check_ffmpeg().await {
+            eprintln!("[WARNING] FFmpeg not found in PATH. Please install FFmpeg.");
+        }
+    });
+
     let (mut rl, thread) = raylib::init()
         .size(920, 560)
         .resizable()
@@ -150,7 +162,13 @@ fn main() {
     rl.set_target_fps(60);
 
     // Try to load custom font, use default if it fails
-    let _font = rl.load_font_ex(&thread, "resources/Inter-Regular.ttf", 64, None);
+    let font_path = "resources/Inter-Regular.ttf";
+    let font_loaded = std::path::Path::new(font_path).exists();
+    if font_loaded {
+        let _ = rl.load_font_ex(&thread, font_path, 64, None);
+    } else {
+        eprintln!("[INFO] Font not found at {}, using default font", font_path);
+    }
 
     let state = AppState {
         running: Arc::new(AtomicBool::new(false)),
